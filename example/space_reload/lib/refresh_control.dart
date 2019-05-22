@@ -8,9 +8,10 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import 'package:flare_flutter/flare.dart';
-import 'package:flare_flutter/flare/math/mat2d.dart';
-import "package:flare_flutter/flare_actor.dart";
-import "contacts.dart";
+import 'package:flare_dart/math/mat2d.dart';
+import 'package:flare_flutter/flare_actor.dart';
+import 'package:flare_flutter/flare_controller.dart';
+import 'contacts.dart';
 
 class CupertinoRefreshControlDemo extends StatefulWidget {
   static const String routeName = '/cupertino/refresh';
@@ -21,7 +22,7 @@ class CupertinoRefreshControlDemo extends StatefulWidget {
 }
 
 class _CupertinoRefreshControlDemoState
-    extends State<CupertinoRefreshControlDemo> implements FlareController {
+    extends State<CupertinoRefreshControlDemo> with FlareController {
   List<List<String>> randomizedContacts;
 
   ActorAnimation _loadingAnimation;
