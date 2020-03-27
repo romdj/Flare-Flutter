@@ -2,14 +2,20 @@ import 'package:flare_dart/actor_artboard.dart';
 import 'package:flare_dart/actor_shape.dart';
 import 'package:flare_dart/stream_reader.dart';
 
-import "math/aabb.dart";
 import "actor_node.dart";
+import "math/aabb.dart";
 
-enum BlendModes { Normal, Multiply, Screen, Additive }
+enum BlendModes { normal, multiply, screen, additive }
+
+class ClipShape {
+  final ActorShape shape;
+  final bool intersect;
+  ClipShape(this.shape, this.intersect);
+}
 
 abstract class ActorDrawable extends ActorNode {
-  List<List<ActorShape>> _clipShapes;
-  List<List<ActorShape>> get clipShapes => _clipShapes;
+  List<List<ClipShape>> _clipShapes;
+  List<List<ClipShape>> get clipShapes => _clipShapes;
 
   // Editor set draw index.
   int _drawOrder;
@@ -38,7 +44,11 @@ abstract class ActorDrawable extends ActorNode {
     ActorNode.read(artboard, reader, component);
 
     component.isHidden = !reader.readBool("isVisible");
-    component.blendModeId = artboard.actor.version < 21 ? 3 : reader.readUint8("blendMode");
+    if (artboard.actor.version < 21) {
+      component.blendModeId = 3;
+    } else {
+      component.blendModeId = reader.readUint8("blendMode");
+    }
     component.drawOrder = reader.readUint16("drawOrder");
 
     return component;
@@ -55,21 +65,26 @@ abstract class ActorDrawable extends ActorNode {
   AABB computeAABB();
   void initializeGraphics() {}
 
+  @override
   void completeResolve() {
-    _clipShapes = List<List<ActorShape>>();
+    _clipShapes = <List<ClipShape>>[];
     List<List<ActorClip>> clippers = allClips;
-    for (List<ActorClip> clips in clippers) {
-      List<ActorShape> shapes = List<ActorShape>();
-      for (ActorClip clip in clips) {
-        clip.node.all((ActorNode node) {
-          if (node is ActorShape) {
-            shapes.add(node);
+    for (final List<ActorClip> clips in clippers) {
+      List<ClipShape> shapes = <ClipShape>[];
+      for (final ActorClip clip in clips) {
+        clip.node.all((component) {
+          if (component is ActorShape) {
+            shapes.add(ClipShape(component, clip.intersect));
           }
+          return true;
         });
       }
-      if (shapes.length > 0) {
+      if (shapes.isNotEmpty) {
         _clipShapes.add(shapes);
       }
     }
   }
+  /// If this is set the drawable belongs to a layer. We store a reference to 
+  /// the parent node that contains the layer.
+  ActorNode layerEffectRenderParent;
 }

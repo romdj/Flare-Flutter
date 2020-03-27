@@ -1,18 +1,23 @@
 import 'dart:async';
-import "dart:typed_data";
 import "dart:convert";
-import "actor_image.dart";
-import "actor_shape.dart";
+import "dart:typed_data";
+
+import 'package:flare_dart/actor_layer_effect_renderer.dart';
+
+import "actor_artboard.dart";
+import "actor_color.dart";
+import 'actor_drop_shadow.dart';
 import "actor_ellipse.dart";
+import "actor_image.dart";
+import 'actor_inner_shadow.dart';
+import "actor_path.dart";
 import "actor_polygon.dart";
 import "actor_rectangle.dart";
+import "actor_shape.dart";
 import "actor_star.dart";
 import "actor_triangle.dart";
-import "actor_path.dart";
-import "actor_color.dart";
-import "stream_reader.dart";
 import "block_types.dart";
-import "actor_artboard.dart";
+import "stream_reader.dart";
 
 abstract class Actor {
   int maxTextureIndex = 0;
@@ -22,6 +27,10 @@ abstract class Actor {
   Actor();
 
   ActorArtboard get artboard => _artboards.isNotEmpty ? _artboards.first : null;
+  ActorArtboard getArtboard(String name) => name == null
+      ? artboard
+      : _artboards.firstWhere((artboard) => artboard?.name == name,
+          orElse: () => null);
 
   int get version {
     return _version;
@@ -60,7 +69,7 @@ abstract class Actor {
     return ActorPath();
   }
 
-  ActorShape makeShapeNode() {
+  ActorShape makeShapeNode(ActorShape source) {
     return ActorShape();
   }
 
@@ -96,6 +105,12 @@ abstract class Actor {
 
   RadialGradientStroke makeRadialStroke();
 
+  ActorDropShadow makeDropShadow();
+
+  ActorInnerShadow makeInnerShadow();
+
+  ActorLayerEffectRenderer makeLayerEffectRenderer();
+
   Future<bool> loadAtlases(List<Uint8List> rawAtlases);
 
   Future<bool> load(ByteData data, dynamic context) async {
@@ -116,8 +131,8 @@ abstract class Actor {
     if (F != 70 || L != 76 || A != 65 || R != 82 || E != 69) {
       Uint8List charCodes = data.buffer.asUint8List();
       String stringData = String.fromCharCodes(charCodes);
-      var jsonActor = jsonDecode(stringData);
-      Map jsonObject = Map();
+      dynamic jsonActor = jsonDecode(stringData);
+      Map jsonObject = <dynamic, dynamic>{};
       jsonObject["container"] = jsonActor;
       inputData = jsonObject;
     }
@@ -126,17 +141,29 @@ abstract class Actor {
     _version = reader.readVersion();
 
     StreamReader block;
-    while ((block = reader.readNextBlock(BlockTypesMap)) != null) {
+    while ((block = reader.readNextBlock(blockTypesMap)) != null) {
       switch (block.blockType) {
-        case BlockTypes.Artboards:
+        case BlockTypes.artboards:
           readArtboardsBlock(block);
           break;
 
-        case BlockTypes.Atlases:
+        case BlockTypes.atlases:
           List<Uint8List> rawAtlases = await readAtlasesBlock(block, context);
           success = await loadAtlases(rawAtlases);
           break;
       }
+    }
+
+    // Resolve now.
+    for (final ActorArtboard artboard in _artboards) {
+      artboard.resolveHierarchy();
+    }
+    for (final ActorArtboard artboard in _artboards) {
+      artboard.completeResolveHierarchy();
+    }
+
+    for (final ActorArtboard artboard in _artboards) {
+      artboard.sortDependencies();
     }
 
     return success;
@@ -149,12 +176,12 @@ abstract class Actor {
     for (int artboardIndex = 0, end = _artboards.length;
         artboardIndex < end;
         artboardIndex++) {
-      StreamReader artboardBlock = block.readNextBlock(BlockTypesMap);
+      StreamReader artboardBlock = block.readNextBlock(blockTypesMap);
       if (artboardBlock == null) {
         break;
       }
       switch (artboardBlock.blockType) {
-        case BlockTypes.ActorArtboard:
+        case BlockTypes.actorArtboard:
           {
             ActorArtboard artboard = makeArtboard();
             artboard.read(artboardBlock);

@@ -1,12 +1,12 @@
 import 'dart:typed_data';
 import 'package:flare_dart/actor_skinnable.dart';
 
-import "stream_reader.dart";
-import "math/mat2d.dart";
 import "actor_artboard.dart";
 import "actor_component.dart";
 import "actor_drawable.dart";
 import "math/aabb.dart";
+import "math/mat2d.dart";
+import "stream_reader.dart";
 
 class SequenceFrame {
   final int _atlasIndex;
@@ -24,13 +24,12 @@ class SequenceFrame {
 
 class ActorImage extends ActorDrawable with ActorSkinnable {
   @override
-  int drawIndex;
-
-  @override
   int drawOrder;
 
   int _textureIndex = -1;
   Float32List _vertices;
+  Float32List _dynamicUV;
+  Float32List get dynamicUV => _dynamicUV;
   Uint16List _triangles;
   int _vertexCount = 0;
   int _triangleCount = 0;
@@ -130,9 +129,7 @@ class ActorImage extends ActorDrawable with ActorSkinnable {
 
   static ActorImage read(
       ActorArtboard artboard, StreamReader reader, ActorImage node) {
-    if (node == null) {
-      node = ActorImage();
-    }
+    node ??= ActorImage();
 
     ActorDrawable.read(artboard, reader, node);
     ActorSkinnable.read(artboard, reader, node);
@@ -145,6 +142,15 @@ class ActorImage extends ActorDrawable with ActorSkinnable {
       node._vertexCount = numVertices;
       node._vertices =
           reader.readFloat32Array(numVertices * node.vertexStride, "vertices");
+
+      // In version 24 we started packing the original UV coordinates if the
+      // image was marked for dynamic runtime swapping.
+      if (artboard.actor.version >= 24) {
+        bool isDynamic = reader.readBool("isDynamic");
+        if (isDynamic) {
+          node._dynamicUV = reader.readFloat32Array(numVertices * 2, "uv");
+        }
+      }
 
       int numTris = reader.readUint32("numTriangles");
       node._triangles = Uint16List(numTris * 3);
@@ -200,11 +206,13 @@ class ActorImage extends ActorDrawable with ActorSkinnable {
 //     return node;
 //   }
 
+  @override
   void resolveComponentIndices(List<ActorComponent> components) {
     super.resolveComponentIndices(components);
     resolveSkinnable(components);
   }
 
+  @override
   ActorComponent makeInstance(ActorArtboard resetArtboard) {
     ActorImage instanceNode = resetArtboard.actor.makeImageNode();
     instanceNode.copyImage(this, resetArtboard);
@@ -220,6 +228,7 @@ class ActorImage extends ActorDrawable with ActorSkinnable {
     _triangleCount = node._triangleCount;
     _vertices = node._vertices;
     _triangles = node._triangles;
+	_dynamicUV = node._dynamicUV;
     if (node._animationDeformedVertices != null) {
       _animationDeformedVertices =
           Float32List.fromList(node._animationDeformedVertices);

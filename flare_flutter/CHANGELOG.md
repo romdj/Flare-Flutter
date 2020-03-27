@@ -1,3 +1,128 @@
+## [2.0.1] - 2020-01-16 10:41:07
+
+- Fix issue #203.
+- New feature submitted by Yuwen Yan @ybbaigo to provide Rive (previously Flare) assets from different sources. Maintains backwards compatibility while adding FlareActor.rootBundle, FlareActor.asset, and various ways to acquire a FlareAsset.
+
+## [1.8.3] - 2019-12-17 04:56:04
+
+- Mark layers for drawable items by first computing which drawables are in the layer. Removes race conditions with layers not being set correctly.
+
+## [1.8.2] - 2019-12-16 09:19:22
+
+- Clear out layers when instancing artboards to prevent animations from other artboards being applied.
+
+## [1.8.1] - 2019-12-09 19:33:06
+
+- Disable blur effects if they are less than a certain threshold. Skia seems to drop the whole layer if it's too close to zero (but not zero).
+
+## [1.8.0] - 2019-12-05 17:34:01
+
+- Support for layer effects including masking, drop shadows, inner shadows, and blurs.
+
+## [1.7.3] - 2019-11-20 16:37:18
+
+- Fixed gradient transformations for shapes with transformAffectsStroke set to true.
+
+## [1.7.2] - 2019-11-18 16:30:39
+
+- Fixing FlareControls to allow for completing layered animations. FlareControls would previously remove an animation once another one played after it had fully mixed in. This would cause popping when animations didn't touch the exact same keyframes.
+
+## [1.7.1] - 2019-11-07 15:03:39
+
+- Backing out changeImageFromNetwork until new PaintingBinding.instance.instantiateImageCodec signature lands in stable.
+- You can manually implement this function if you need it. Example here: https://gist.github.com/luigi-rosso/c50277341bd2681be072a575acbeb1fc#file-dynamic_image_swapping-dart-L60
+
+## [1.7.0] - 2019-11-07 12:16:35
+
+- Adding support for runtime image swapping.
+
+## [1.6.5] - 2019-11-06 17:29:43
+
+- Fixed an issue with FlareCacheBuilder calling setState when the widget is no longer mounted.
+
+## [1.6.4] - 2019-10-29 12:45:05
+
+- Use latest flare_dart, fixing issue with transformAffectsStroke in instances.
+- Implement features as suggested by PR https://github.com/2d-inc/Flare-Flutter/pull/177
+- New FlareCacheBuilder which takes an array of Flare files to warm the cache up with, builder is called with an isWarm boolean to allow displaying different content while the files are loading. Useful for loading Flare files you know you'll be using later in this view (or sub view) context and having them display immediately.
+- FlareActor will always attempt a warm load (fully sync) path when loading a Flare content, assuring that when content is warm in the cache, no visual glitches/pops occur.
+
+## [1.6.3] - 2019-10-11 12:58:13
+
+- Use latest flare_dart, fixing issue with reading clip nodes in JSON.
+
+## [1.6.2] - 2019-10-11 12:38:33
+
+- Use latest flare_dart, mitigating a bad path keyframe issue.
+
+## [1.6.1] - 2019-10-09 14:20:54
+
+- Image and Shapes share clipping logic. Fixes issue with image clipping.
+
+## [1.6.0] - 2019-10-09 11:08:52
+
+- Using latest flare_dart with support for difference clipping.
+
+## [1.5.15] - 2019-10-08 13:38:55
+
+- Fixed Pub deploy bug.
+
+## [1.5.14] - 2019-10-08 13:38:55
+
+- Fixing up various static analysis issues.
+
+## [1.5.13] - 2019-10-07 11:21:29
+
+- Using latest flare_dart with support for Nodes inside of Shapes (Paths with multiple transform spaces).
+
+## [1.5.12] - 2019-10-04 17:56:54
+
+- Introduce FlareTesting.setup(); call this prior to running any tests using Flare content.
+
+## [1.5.11] - 2019-10-04 13:44:04
+
+- Clamping trim start/end values to 0-1.
+
+## [1.5.10] - 2019-09-30 21:20:50
+
+- Bump flare_dart dependency.
+
+## [1.5.9] - 2019-09-23 16:43:42
+
+- Added support for transformAffectsStroke property on ActorShape. Internally this requires a new concrete type for the FlutterActorShape as the transformAffectsStroke property requires a slightly more complex version of FlutterActorShape. In order to keep existing animations (and future ones that don't use this) streamlined, a new FlutterActorShapeWithTransformedStroke class was added that extends from FlutterActorShape.
+
+## [1.5.8] - 2019-09-04 08:47:31
+
+- Bump flare_dart dependency version to get fix for iterating null children. Issue #146.
+
+## [1.5.7] - 2019-08-26 10:39:49
+
+- Clip the artboard based on settings from Flare.
+
+## [1.5.6] - 2019-08-23 09:52:13
+
+- Clamp opacity values into 0..1 range before creating color for paint.
+
+## [1.5.5] - 2019-07-24 11:44:36
+
+ - Adding artboard option to FlareActor. Use this to change which artboard gets displayed by the FlareActor widget.
+ - Fixed incorrect signature of load method. If you were deriving FlareRenderBox, you'll need to update it to match. It's a minor change from void to Future<void>.
+ - Added some documentation to the FlareActor parameters.
+
+## [1.5.4] - 2019-07-08 21:10:50
+
+ - Using Uint16List for vertex indices now that Flutter Stable has been updated.
+
+## [1.5.3] - 2019-07-06 11:09:44
+
+ - Fixing an intialization error when a node has null children.
+ - FlareActor widget can now size itself via the sizeFromArtboard named parameter, based on feedback from issue #104.
+
+## [1.5.2] - 2019-06-20 16:33:52
+
+ Using latest version of flare_dart which has fixes for rounded rectangles and clipping paths.
+
+
 ## [1.5.1] - 2019-05-20 10:38:30
 
 Added missing call to setViewTransform for controllers. This is now done more efficiently as it is only called when the view transform changes.

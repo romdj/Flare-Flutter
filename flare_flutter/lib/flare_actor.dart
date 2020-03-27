@@ -6,41 +6,146 @@ import 'package:flutter/rendering.dart';
 import 'package:flare_dart/actor_drawable.dart';
 import 'package:flare_dart/math/mat2d.dart';
 import 'package:flare_dart/math/aabb.dart';
+import 'package:flutter/services.dart';
+
+import 'asset_provider.dart';
 import 'flare.dart';
 import 'flare_controller.dart';
+import 'provider/asset_flare.dart';
+import 'provider/memory_flare.dart';
 
 typedef void FlareCompletedCallback(String name);
 
+/// A widget that displays a Flare.
+///
+/// Several constructors are provided for the various ways that a Flare can be
+/// specified:
+///  * [FlareActor], for obtaining a Flare from an asset [filename].
+///  * [FlareActor.asset], for obtaining a Flare from an [AssetProvider].
+///  * [FlareActor.bundle], for obtaining a Flare from an [AssetBundle].
+///  * [FlareActor.memory], for obtaining a Flare from a [Uint8List].
 class FlareActor extends LeafRenderObjectWidget {
+  /// Name of the Flare file to be loaded from the AssetBundle.
   final String filename;
+
+  /// The Flare asset to display.
+  final AssetProvider flareProvider;
+
+  /// The name of the artboard to display.
+  final String artboard;
+
+  /// The name of the animation to play.
   final String animation;
+
+  /// When true, the animation will be applied at the end of its duration.
   final bool snapToEnd;
+
+  /// The BoxFit strategy used to scale the Flare content into the
+  /// bounds of this widget.
   final BoxFit fit;
+
+  /// The alignment that will be applied in conjuction to the [fit] to align
+  /// the Flare content within the bounds of this widget.
   final Alignment alignment;
+
+  /// When true, animations do not advance.
   final bool isPaused;
+
+  /// When true, the Flare content will be clipped against the bounds of this
+  /// widget.
   final bool shouldClip;
+
+  /// The [FlareController] used to drive animations/mixing/procedural hierarchy
+  /// manipulation of the Flare contents.
   final FlareController controller;
+
+  /// Callback invoked when [animation] has completed. If [animation] is looping
+  /// this callback is never invoked.
   final FlareCompletedCallback callback;
+
+  /// The color to override any fills/strokes with.
   final Color color;
+
+  /// The name of the node to use to determine the bounds of the content.
+  /// When null it will default to the bounds of the artboard.
   final String boundsNode;
 
-  const FlareActor(this.filename,
-      {this.boundsNode,
-      this.animation,
-      this.fit = BoxFit.contain,
-      this.alignment = Alignment.center,
-      this.isPaused = false,
-      this.snapToEnd = false,
-      this.controller,
-      this.callback,
-      this.color,
-      this.shouldClip = true});
+  /// When true the intrinsic size of the artboard will be used as the
+  /// dimensions of this widget.
+  final bool sizeFromArtboard;
+
+  const FlareActor(
+    this.filename, {
+    this.boundsNode,
+    this.animation,
+    this.fit = BoxFit.contain,
+    this.alignment = Alignment.center,
+    this.isPaused = false,
+    this.snapToEnd = false,
+    this.controller,
+    this.callback,
+    this.color,
+    this.shouldClip = true,
+    this.sizeFromArtboard = false,
+    this.artboard,
+  }) : flareProvider = null;
+
+  FlareActor.bundle(
+    String name, {
+    this.boundsNode,
+    this.animation,
+    this.fit = BoxFit.contain,
+    this.alignment = Alignment.center,
+    this.isPaused = false,
+    this.snapToEnd = false,
+    this.controller,
+    this.callback,
+    this.color,
+    this.shouldClip = true,
+    this.sizeFromArtboard = false,
+    this.artboard,
+    AssetBundle bundle,
+  })  : filename = null,
+        flareProvider = AssetFlare(bundle: bundle ?? rootBundle, name: name);
+
+  FlareActor.memory(
+    Uint8List bytes, {
+    this.boundsNode,
+    this.animation,
+    this.fit = BoxFit.contain,
+    this.alignment = Alignment.center,
+    this.isPaused = false,
+    this.snapToEnd = false,
+    this.controller,
+    this.callback,
+    this.color,
+    this.shouldClip = true,
+    this.sizeFromArtboard = false,
+    this.artboard,
+  })  : filename = null,
+        flareProvider = MemoryFlare(bytes: bytes);
+
+  const FlareActor.asset(
+    this.flareProvider, {
+    this.boundsNode,
+    this.animation,
+    this.fit = BoxFit.contain,
+    this.alignment = Alignment.center,
+    this.isPaused = false,
+    this.snapToEnd = false,
+    this.controller,
+    this.callback,
+    this.color,
+    this.shouldClip = true,
+    this.sizeFromArtboard = false,
+    this.artboard,
+  })  : filename = null;
 
   @override
   RenderObject createRenderObject(BuildContext context) {
     return FlareActorRenderObject()
-      ..assetBundle = DefaultAssetBundle.of(context)
-      ..filename = filename
+      ..assetProvider =
+          flareProvider ?? AssetFlare(bundle: rootBundle, name: filename)
       ..fit = fit
       ..alignment = alignment
       ..animationName = animation
@@ -50,15 +155,17 @@ class FlareActor extends LeafRenderObjectWidget {
       ..completed = callback
       ..color = color
       ..shouldClip = shouldClip
-      ..boundsNodeName = boundsNode;
+      ..boundsNodeName = boundsNode
+      ..useIntrinsicSize = sizeFromArtboard
+      ..artboardName = artboard;
   }
 
   @override
   void updateRenderObject(
       BuildContext context, covariant FlareActorRenderObject renderObject) {
     renderObject
-      ..assetBundle = DefaultAssetBundle.of(context)
-      ..filename = filename
+      ..assetProvider =
+          flareProvider ?? AssetFlare(bundle: rootBundle, name: filename)
       ..fit = fit
       ..alignment = alignment
       ..animationName = animation
@@ -66,7 +173,9 @@ class FlareActor extends LeafRenderObjectWidget {
       ..isPaused = isPaused
       ..color = color
       ..shouldClip = shouldClip
-      ..boundsNodeName = boundsNode;
+      ..boundsNodeName = boundsNode
+      ..useIntrinsicSize = sizeFromArtboard
+      ..artboardName = artboard;
   }
 
   @override
@@ -89,13 +198,25 @@ class FlareAnimationLayer {
 
 class FlareActorRenderObject extends FlareRenderBox {
   Mat2D _lastControllerViewTransform;
-  String _filename;
+  AssetProvider _assetProvider;
+  String _artboardName;
   String _animationName;
   String _boundsNodeName;
   FlareController _controller;
   FlareCompletedCallback _completedCallback;
   bool snapToEnd = false;
   bool _isPaused = false;
+  FlutterActor _actor;
+
+  String get artboardName => _artboardName;
+  set artboardName(String name) {
+    if (_artboardName == name) {
+      return;
+    }
+    _artboardName = name;
+    _instanceArtboard();
+  }
+
   bool get isPaused => _isPaused;
   set isPaused(bool value) {
     if (_isPaused == value) {
@@ -191,54 +312,82 @@ class FlareActorRenderObject extends FlareRenderBox {
 
   @override
   void onUnload() {
-    _animationLayers.length = 0;
+    _animationLayers.clear();
   }
 
-  String get filename => _filename;
-  set filename(String value) {
-    if (value == _filename) {
+  AssetProvider get assetProvider => _assetProvider;
+  set assetProvider(AssetProvider value) {
+    if (value == _assetProvider) {
       return;
     }
-    _filename = value;
+    _assetProvider = value;
 
-    if (_filename == null) {
+    if (_assetProvider == null) {
       markNeedsPaint();
     }
-
+    // file will change, let's clear out old animations.
+    _animationLayers.clear();
     load();
   }
 
+  bool _instanceArtboard() {
+    if (_actor == null || _actor.artboard == null) {
+      return false;
+    }
+    FlutterActorArtboard artboard = _actor
+        .getArtboard(_artboardName)
+        .makeInstance() as FlutterActorArtboard;
+    artboard.initializeGraphics();
+    _artboard = artboard;
+    intrinsicSize = Size(artboard.width, artboard.height);
+    _artboard.overrideColor = _color == null
+        ? null
+        : Float32List.fromList([
+            _color.red / 255.0,
+            _color.green / 255.0,
+            _color.blue / 255.0,
+            _color.opacity
+          ]);
+
+    if (_controller != null) {
+      _controller.initialize(_artboard);
+    }
+    _animationLayers.clear();
+    _updateAnimation(onlyWhenMissing: true);
+    // Immediately update the newly instanced artboard and compute
+    // bounds so that the widget can take up the necessary space
+    advance(0.0);
+    updateBounds();
+
+    markNeedsPaint();
+    return true;
+  }
+
   @override
-  void load() {
-    if (_filename == null) {
+  bool get canLoad {
+    return super.canLoad && _assetProvider != null;
+  }
+
+  /// Attempt a warm load, this is the optimal case when the
+  /// required asset is already in the cache.
+  @override
+  bool warmLoad() {
+    if (_assetProvider == null) {
+      return false;
+    }
+    _actor = getWarmFlare(_assetProvider);
+    return _instanceArtboard();
+  }
+
+  /// Load the necessary Flare file specified by [AssetProvider].
+  /// this occurs when the optimal warmLoad fails to find an asset in cache.
+  @override
+  Future<void> coldLoad() async {
+    if (_assetProvider == null) {
       return;
     }
-    super.load();
-    loadFlare(_filename).then((FlutterActor actor) {
-      if (actor == null || actor.artboard == null) {
-        return;
-      }
-      FlutterActorArtboard artboard =
-          actor.artboard.makeInstance() as FlutterActorArtboard;
-      artboard.initializeGraphics();
-      _artboard = artboard;
-      _artboard.overrideColor = _color == null
-          ? null
-          : Float32List.fromList([
-              _color.red / 255.0,
-              _color.green / 255.0,
-              _color.blue / 255.0,
-              _color.opacity
-            ]);
-      _artboard.advance(0.0);
-      updateBounds();
-
-      if (_controller != null) {
-        _controller.initialize(_artboard);
-      }
-      _updateAnimation(onlyWhenMissing: true);
-      markNeedsPaint();
-    });
+    _actor = await loadFlare(_assetProvider);
+    _instanceArtboard();
   }
 
   FlareCompletedCallback get completed => _completedCallback;

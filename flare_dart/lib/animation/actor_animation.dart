@@ -1,9 +1,9 @@
-import "../stream_reader.dart";
+import "../actor_artboard.dart";
 import "../actor_component.dart";
 import "../actor_event.dart";
-import "../actor_artboard.dart";
-import "property_types.dart";
+import "../stream_reader.dart";
 import "keyframe.dart";
+import "property_types.dart";
 
 typedef KeyFrame KeyFrameReader(StreamReader reader, ActorComponent component);
 
@@ -20,124 +20,132 @@ class PropertyAnimation {
   }
 
   static PropertyAnimation read(StreamReader reader, ActorComponent component) {
-    StreamReader propertyBlock = reader.readNextBlock(PropertyTypesMap);
+    StreamReader propertyBlock = reader.readNextBlock(propertyTypesMap);
     if (propertyBlock == null) {
       return null;
     }
     PropertyAnimation propertyAnimation = PropertyAnimation();
     int type = propertyBlock.blockType;
-    // Wish there were a way do to this in Dart without having to create my own hash set.
-    // if(!Enum.IsDefined(typeof(PropertyTypes), type))
-    // {
-    // 	return null;
-    // }
-    // else
-    // {
     propertyAnimation._type = type;
 
     KeyFrameReader keyFrameReader;
     switch (propertyAnimation._type) {
-      case PropertyTypes.PosX:
+      case PropertyTypes.posX:
         keyFrameReader = KeyFramePosX.read;
         break;
-      case PropertyTypes.PosY:
+      case PropertyTypes.posY:
         keyFrameReader = KeyFramePosY.read;
         break;
-      case PropertyTypes.ScaleX:
+      case PropertyTypes.scaleX:
         keyFrameReader = KeyFrameScaleX.read;
         break;
-      case PropertyTypes.ScaleY:
+      case PropertyTypes.scaleY:
         keyFrameReader = KeyFrameScaleY.read;
         break;
-      case PropertyTypes.Rotation:
+      case PropertyTypes.rotation:
         keyFrameReader = KeyFrameRotation.read;
         break;
-      case PropertyTypes.Opacity:
+      case PropertyTypes.opacity:
         keyFrameReader = KeyFrameOpacity.read;
         break;
-      case PropertyTypes.DrawOrder:
+      case PropertyTypes.drawOrder:
         keyFrameReader = KeyFrameDrawOrder.read;
         break;
-      case PropertyTypes.Length:
+      case PropertyTypes.length:
         keyFrameReader = KeyFrameLength.read;
         break;
-      case PropertyTypes.ImageVertices:
+      case PropertyTypes.imageVertices:
         keyFrameReader = KeyFrameImageVertices.read;
         break;
-      case PropertyTypes.ConstraintStrength:
+      case PropertyTypes.constraintStrength:
         keyFrameReader = KeyFrameConstraintStrength.read;
         break;
-      case PropertyTypes.Trigger:
+      case PropertyTypes.trigger:
         keyFrameReader = KeyFrameTrigger.read;
         break;
-      case PropertyTypes.IntProperty:
+      case PropertyTypes.intProperty:
         keyFrameReader = KeyFrameIntProperty.read;
         break;
-      case PropertyTypes.FloatProperty:
+      case PropertyTypes.floatProperty:
         keyFrameReader = KeyFrameFloatProperty.read;
         break;
-      case PropertyTypes.StringProperty:
+      case PropertyTypes.stringProperty:
         keyFrameReader = KeyFrameStringProperty.read;
         break;
-      case PropertyTypes.BooleanProperty:
+      case PropertyTypes.booleanProperty:
         keyFrameReader = KeyFrameBooleanProperty.read;
         break;
-      case PropertyTypes.CollisionEnabled:
+      case PropertyTypes.collisionEnabled:
         keyFrameReader = KeyFrameCollisionEnabledProperty.read;
         break;
-      case PropertyTypes.ActiveChildIndex:
+      case PropertyTypes.activeChildIndex:
         keyFrameReader = KeyFrameActiveChild.read;
         break;
-      case PropertyTypes.Sequence:
+      case PropertyTypes.sequence:
         keyFrameReader = KeyFrameSequence.read;
         break;
-      case PropertyTypes.PathVertices:
+      case PropertyTypes.pathVertices:
         keyFrameReader = KeyFramePathVertices.read;
         break;
-      case PropertyTypes.FillColor:
+      case PropertyTypes.fillColor:
         keyFrameReader = KeyFrameFillColor.read;
         break;
-      case PropertyTypes.FillGradient:
+      case PropertyTypes.color:
+        keyFrameReader = KeyFrameShadowColor.read;
+        break;
+      case PropertyTypes.offsetX:
+        keyFrameReader = KeyFrameShadowOffsetX.read;
+        break;
+      case PropertyTypes.offsetY:
+        keyFrameReader = KeyFrameShadowOffsetY.read;
+        break;
+      case PropertyTypes.blurX:
+        keyFrameReader = KeyFrameBlurX.read;
+        break;
+      case PropertyTypes.blurY:
+        keyFrameReader = KeyFrameBlurY.read;
+        break;
+      case PropertyTypes.fillGradient:
         keyFrameReader = KeyFrameGradient.read;
         break;
-      case PropertyTypes.StrokeGradient:
+      case PropertyTypes.strokeGradient:
         keyFrameReader = KeyFrameGradient.read;
         break;
-      case PropertyTypes.FillRadial:
+      case PropertyTypes.fillRadial:
         keyFrameReader = KeyFrameRadial.read;
         break;
-      case PropertyTypes.StrokeRadial:
+      case PropertyTypes.strokeRadial:
         keyFrameReader = KeyFrameRadial.read;
         break;
-      case PropertyTypes.StrokeColor:
+      case PropertyTypes.strokeColor:
         keyFrameReader = KeyFrameStrokeColor.read;
         break;
-      case PropertyTypes.StrokeWidth:
+      case PropertyTypes.strokeWidth:
         keyFrameReader = KeyFrameStrokeWidth.read;
         break;
-      case PropertyTypes.StrokeOpacity:
-      case PropertyTypes.FillOpacity:
+      case PropertyTypes.strokeOpacity:
+      case PropertyTypes.fillOpacity:
         keyFrameReader = KeyFramePaintOpacity.read;
         break;
-      case PropertyTypes.ShapeWidth:
+      case PropertyTypes.shapeWidth:
         keyFrameReader = KeyFrameShapeWidth.read;
         break;
-      case PropertyTypes.ShapeHeight:
+      case PropertyTypes.shapeHeight:
         keyFrameReader = KeyFrameShapeHeight.read;
         break;
-      case PropertyTypes.CornerRadius:
+      case PropertyTypes.cornerRadius:
         keyFrameReader = KeyFrameCornerRadius.read;
         break;
-      case PropertyTypes.InnerRadius:
+      case PropertyTypes.innerRadius:
         keyFrameReader = KeyFrameInnerRadius.read;
         break;
-      case PropertyTypes.StrokeStart:
+      case PropertyTypes.strokeStart:
         keyFrameReader = KeyFrameStrokeStart.read;
         break;
-      case PropertyTypes.StrokeEnd:
+      case PropertyTypes.strokeEnd:
         keyFrameReader = KeyFrameStrokeEnd.read;
         break;
-      case PropertyTypes.StrokeOffset:
+      case PropertyTypes.strokeOffset:
         keyFrameReader = KeyFrameStrokeOffset.read;
         break;
     }
@@ -167,7 +175,7 @@ class PropertyAnimation {
   }
 
   void apply(double time, ActorComponent component, double mix) {
-    if (_keyFrames.length == 0) {
+    if (_keyFrames.isEmpty) {
       return;
     }
 
@@ -180,7 +188,7 @@ class PropertyAnimation {
       int end = _keyFrames.length - 1;
 
       while (start <= end) {
-        mid = ((start + end) >> 1);
+        mid = (start + end) >> 1;
         element = _keyFrames[mid].time;
         if (element < time) {
           start = mid + 1;
@@ -234,6 +242,7 @@ class ComponentAnimation {
     int numProperties = reader.readUint16Length();
     componentAnimation._properties = List<PropertyAnimation>(numProperties);
     for (int i = 0; i < numProperties; i++) {
+      assert(componentAnimation._componentIndex < components.length);
       componentAnimation._properties[i] = PropertyAnimation.read(
           reader, components[componentAnimation._componentIndex]);
     }
@@ -243,7 +252,7 @@ class ComponentAnimation {
   }
 
   void apply(double time, List<ActorComponent> components, double mix) {
-    for (PropertyAnimation propertyAnimation in _properties) {
+    for (final PropertyAnimation propertyAnimation in _properties) {
       if (propertyAnimation != null) {
         propertyAnimation.apply(time, components[_componentIndex], mix);
       }
@@ -296,36 +305,23 @@ class ActorAnimation {
   List<ComponentAnimation> _components;
   List<ComponentAnimation> _triggerComponents;
 
-  String get name {
-    return _name;
-  }
+  String get name => _name;
 
-  bool get isLooping {
-    return _isLooping;
-  }
+  int get fps => _fps;
 
-  double get duration {
-    return _duration;
-  }
+  bool get isLooping => _isLooping;
 
-  List<ComponentAnimation> get animatedComponents {
-    return _components;
-  }
+  double get duration => _duration;
 
-  //Animation.prototype.triggerEvents = function(actorComponents, fromTime, toTime, triggered)
-  /*
-								name:component._Name,
-								component:component,
-								propertyType:property._Type,
-								keyFrameTime:toTime,
-								elapsed:0*/
+  List<ComponentAnimation> get animatedComponents => _components;
+
   void triggerEvents(List<ActorComponent> components, double fromTime,
       double toTime, List<AnimationEventArgs> triggerEvents) {
     for (int i = 0; i < _triggerComponents.length; i++) {
       ComponentAnimation keyedComponent = _triggerComponents[i];
-      for (PropertyAnimation property in keyedComponent.properties) {
+      for (final PropertyAnimation property in keyedComponent.properties) {
         switch (property.propertyType) {
-          case PropertyTypes.Trigger:
+          case PropertyTypes.trigger:
             List<KeyFrame> keyFrames = property.keyFrames;
 
             int kfl = keyFrames.length;
@@ -342,7 +338,7 @@ class ActorAnimation {
               int end = kfl - 1;
 
               while (start <= end) {
-                mid = ((start + end) >> 1);
+                mid = (start + end) >> 1;
                 element = keyFrames[mid].time;
                 if (element < toTime) {
                   start = mid + 1;
@@ -357,7 +353,6 @@ class ActorAnimation {
               idx = start;
             }
 
-            //int idx = keyFrameLocation(toTime, keyFrames, 0, keyFrames.length-1);
             if (idx == 0) {
               if (kfl > 0 && keyFrames[0].time == toTime) {
                 ActorComponent component =
@@ -398,6 +393,19 @@ class ActorAnimation {
     }
   }
 
+  /// Apply the specified time to all the components of this animation.
+  /// This operation will result in the application of the keyframe values
+  /// at the given time, and perform interpolation if needed.
+  ///
+  /// @time is the current time for this animation
+  /// @artboard is the artboard that contains it
+  /// @mix is a value [0,1]
+  ///   This is a blending parameter to allow smoothing between concurrent
+  ///   animations.
+  ///   By setting mix to 1, the current animation will fully  replace the
+  ///   existing values. By ramping up mix with values between 0 and 1, the
+  ///   transition from one animation to the next will be more gradual as it
+  ///   gets mixed in, preventing poppying effects.
   void apply(double time, ActorArtboard artboard, double mix) {
     for (final ComponentAnimation componentAnimation in _components) {
       componentAnimation.apply(time, artboard.components, mix);
@@ -415,9 +423,10 @@ class ActorAnimation {
     reader.openArray("keyed");
     int numKeyedComponents = reader.readUint16Length();
 
-    // We distinguish between animated and triggered components as ActorEvents 
-	// are currently only used to trigger events and don't need the full animation
-	// cycle. This lets them optimize them out of the regular animation cycle.
+    // We distinguish between animated and triggered components as ActorEvents
+    // are currently only used to trigger events and don't need the full
+    // animation cycle. This lets them optimize them out of the regular
+    // animation cycle.
     int animatedComponentCount = 0;
     int triggerComponentCount = 0;
 
@@ -427,7 +436,8 @@ class ActorAnimation {
       ComponentAnimation componentAnimation =
           ComponentAnimation.read(reader, components);
       animatedComponents[i] = componentAnimation;
-      if (componentAnimation != null) {
+      if (componentAnimation != null &&
+          componentAnimation.componentIndex < components.length) {
         ActorComponent actorComponent =
             components[componentAnimation.componentIndex];
         if (actorComponent != null) {
@@ -468,142 +478,3 @@ class ActorAnimation {
     return animation;
   }
 }
-
-// class ActorAnimationInstance
-// {
-// 	Actor _actor;
-// 	ActorAnimation _animation;
-// 	double _time;
-// 	double _min;
-// 	double _max;
-// 	double _range;
-// 	bool loop;
-
-// 			event EventHandler<AnimationEventArgs> AnimationEvent;
-
-// 	ActorAnimationInstance(Actor actor, ActorAnimation animation)
-// 	{
-// 		_actor = actor;
-// 		_animation = animation;
-// 		_time = 0.0;
-// 		_min = 0.0;
-// 		_max = animation.Duration;
-// 		_range = _max - _min;
-// 		loop = animation.IsLooping;
-// 	}
-
-// 	double get minTime
-// 	{
-// 		return _min;
-// 	}
-
-// 	double get maxTime
-// 	{
-// 		return _max;
-// 	}
-
-// 	double get time
-// 	{
-// 		return _time;
-// 	}
-
-// 	set time(double value)
-// 	{
-// 		double delta = value - _time;
-// 		double time = _time + (delta % _range);
-
-// 		if(time < _min)
-// 		{
-// 			if(loop)
-// 			{
-// 				time = _max - (_min - time);
-// 			}
-// 			else
-// 			{
-// 				time = _min;
-// 			}
-// 		}
-// 		else if(time > _max)
-// 		{
-// 			if(loop)
-// 			{
-// 				time = _min + (time - _max);
-// 			}
-// 			else
-// 			{
-// 				time = _max;
-// 			}
-// 		}
-// 		_time = time;
-// 	}
-
-// 	void advance(float seconds)
-// 	{
-// 		List<AnimationEventArgs> triggeredEvents = new List<AnimationEventArgs>();
-// 		float time = _time;
-// 		time += seconds % _range;
-// 		if(time < _min)
-// 		{
-// 			if(loop)
-// 			{
-// 				_animation.TriggerEvents(_actor.components, time, _time, triggeredEvents);
-// 				time = _max - (_min - time);
-// 				_animation.TriggerEvents(_actor.components, time, _max, triggeredEvents);
-// 			}
-// 			else
-// 			{
-// 				time = _min;
-// 				if(_time != time)
-// 				{
-// 					_animation.TriggerEvents(_actor.components, _min, _time, triggeredEvents);
-// 				}
-// 			}
-// 		}
-// 		else if(time > _max)
-// 		{
-// 			if(loop)
-// 			{
-// 				_animation.TriggerEvents(_actor.components, time, _time, triggeredEvents);
-// 				time = _min + (time - _max);
-// 				_animation.TriggerEvents(_actor.components, _min-0.001f, time, triggeredEvents);
-// 			}
-// 			else
-// 			{
-// 				time = _max;
-// 				if(_time != time)
-// 				{
-// 					_animation.TriggerEvents(_actor.components, _time, _max, triggeredEvents);
-// 				}
-// 			}
-// 		}
-// 		else if(time > _time)
-// 		{
-// 			_animation.TriggerEvents(_actor.components, _time, time, triggeredEvents);
-// 		}
-// 		else
-// 		{
-// 			_animation.TriggerEvents(_actor.components, time, _time, triggeredEvents);
-// 		}
-
-// 		for(AnimationEventArgs ev in triggeredEvents)
-// 		{
-// 						if (AnimationEvent != null)
-// 						{
-// 								AnimationEvent(this, ev);
-// 						}
-// 						_actor.OnAnimationEvent(ev);
-// 		}
-// 		/*for(var i = 0; i < triggeredEvents.length; i++)
-// 		{
-// 			var event = triggeredEvents[i];
-// 			this.dispatch("animationEvent", event);
-// 			_actor.dispatch("animationEvent", event);
-// 		}*/
-// 		_time = time;
-// 	}
-
-// 	void Apply(float mix)
-// 	{
-// 		_animation.apply(_time, _actor, mix);
-// 	}
-// }

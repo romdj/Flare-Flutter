@@ -1,10 +1,22 @@
-import "stream_reader.dart";
 import "actor_artboard.dart";
 import "actor_node.dart";
+import "stream_reader.dart";
 
 abstract class ActorComponent {
   String _name = "Unnamed";
-  ActorNode parent;
+  ActorNode _parent;
+  ActorNode get parent => _parent;
+  set parent(ActorNode value) {
+    if (_parent == value) {
+      return;
+    }
+    ActorNode from = _parent;
+    _parent = value;
+    onParentChanged(from, value);
+  }
+
+  void onParentChanged(ActorNode from, ActorNode to) {}
+
   ActorArtboard artboard;
   int _parentIdx = 0;
   int idx = 0;
@@ -12,11 +24,8 @@ abstract class ActorComponent {
   int dirtMask = 0;
   List<ActorComponent> dependents;
 
-  ActorComponent.withArtboard(ActorArtboard artboard) {
-    this.artboard = artboard;
-  }
-
-  ActorComponent() {}
+  ActorComponent();
+  ActorComponent.withArtboard(this.artboard);
 
   String get name {
     return _name;
@@ -25,11 +34,7 @@ abstract class ActorComponent {
   void resolveComponentIndices(List<ActorComponent> components) {
     ActorNode node = components[_parentIdx] as ActorNode;
     if (node != null) {
-      if (this is ActorNode) {
-        node.addChild(this as ActorNode);
-      } else {
-        parent = node;
-      }
+      node.addChild(this);
       artboard.addDependency(this, node);
     }
   }

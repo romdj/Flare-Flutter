@@ -1,33 +1,32 @@
+import "dart:collection";
 import "dart:typed_data";
-import 'math/mat2d.dart';
 
+import "actor_artboard.dart";
+import "actor_component.dart";
+import "actor_flags.dart";
 import "actor_node.dart";
 import "actor_shape.dart";
-import "actor_artboard.dart";
-
-import "actor_component.dart";
-import "dart:collection";
-import "stream_reader.dart";
+import 'math/mat2d.dart';
 import "math/vec2d.dart";
-import "actor_flags.dart";
+import "stream_reader.dart";
 
-enum FillRule { EvenOdd, NonZero }
-enum StrokeCap { Butt, Round, Square }
-enum StrokeJoin { Miter, Round, Bevel }
-enum TrimPath { Off, Sequential, Synced }
+enum FillRule { evenOdd, nonZero }
+enum StrokeCap { butt, round, square }
+enum StrokeJoin { miter, round, bevel }
+enum TrimPath { off, sequential, synced }
 
 final HashMap<int, FillRule> fillRuleLookup =
     HashMap<int, FillRule>.fromIterables(
-        [0, 1], [FillRule.EvenOdd, FillRule.NonZero]);
+        [0, 1], [FillRule.evenOdd, FillRule.nonZero]);
 final HashMap<int, StrokeCap> strokeCapLookup =
     HashMap<int, StrokeCap>.fromIterables(
-        [0, 1, 2], [StrokeCap.Butt, StrokeCap.Round, StrokeCap.Square]);
+        [0, 1, 2], [StrokeCap.butt, StrokeCap.round, StrokeCap.square]);
 final HashMap<int, StrokeJoin> strokeJoinLookup =
     HashMap<int, StrokeJoin>.fromIterables(
-        [0, 1, 2], [StrokeJoin.Miter, StrokeJoin.Round, StrokeJoin.Bevel]);
+        [0, 1, 2], [StrokeJoin.miter, StrokeJoin.round, StrokeJoin.bevel]);
 final HashMap<int, TrimPath> trimPathLookup =
     HashMap<int, TrimPath>.fromIterables(
-        [0, 1, 2], [TrimPath.Off, TrimPath.Sequential, TrimPath.Synced]);
+        [0, 1, 2], [TrimPath.off, TrimPath.sequential, TrimPath.synced]);
 
 abstract class ActorPaint extends ActorComponent {
   double _opacity = 1.0;
@@ -53,6 +52,7 @@ abstract class ActorPaint extends ActorComponent {
     return component;
   }
 
+  @override
   void completeResolve() {
     artboard.addDependency(this, parent);
   }
@@ -60,7 +60,7 @@ abstract class ActorPaint extends ActorComponent {
   ActorShape get shape => parent as ActorShape;
 
   void markPaintDirty() {
-    artboard.addDirt(this, DirtyFlags.PaintDirty, false);
+    artboard.addDirt(this, DirtyFlags.paintDirty, false);
   }
 }
 
@@ -103,12 +103,15 @@ abstract class ActorColor extends ActorPaint {
     return component;
   }
 
+  @override
   void onDirty(int dirt) {}
+
+  @override
   void update(int dirt) {}
 }
 
 abstract class ActorFill {
-  FillRule _fillRule = FillRule.EvenOdd;
+  FillRule _fillRule = FillRule.evenOdd;
   FillRule get fillRule => _fillRule;
 
   static void read(
@@ -134,15 +137,15 @@ abstract class ActorStroke {
     markPaintDirty();
   }
 
-  StrokeCap _cap = StrokeCap.Butt;
-  StrokeJoin _join = StrokeJoin.Miter;
+  StrokeCap _cap = StrokeCap.butt;
+  StrokeJoin _join = StrokeJoin.miter;
   StrokeCap get cap => _cap;
   StrokeJoin get join => _join;
 
-  TrimPath _trim = TrimPath.Off;
+  TrimPath _trim = TrimPath.off;
 
   TrimPath get trim => _trim;
-  bool get isTrimmed => _trim != TrimPath.Off;
+  bool get isTrimmed => _trim != TrimPath.off;
 
   double _trimStart = 0.0;
   double get trimStart => _trimStart;
@@ -185,7 +188,7 @@ abstract class ActorStroke {
       component._join = strokeJoinLookup[reader.readUint8("join")];
       if (artboard.actor.version >= 20) {
         component._trim =
-            trimPathLookup[reader.readUint8("trim")] ?? TrimPath.Off;
+            trimPathLookup[reader.readUint8("trim")] ?? TrimPath.off;
         if (component.isTrimmed) {
           component._trimStart = reader.readFloat32("start");
           component._trimEnd = reader.readFloat32("end");
@@ -221,6 +224,7 @@ abstract class ColorFill extends ActorColor with ActorFill {
     return component;
   }
 
+  @override
   void completeResolve() {
     super.completeResolve();
 
@@ -244,6 +248,7 @@ abstract class ColorStroke extends ActorColor with ActorStroke {
     return component;
   }
 
+  @override
   void completeResolve() {
     super.completeResolve();
 
@@ -256,11 +261,10 @@ abstract class ColorStroke extends ActorColor with ActorStroke {
 
 abstract class GradientColor extends ActorPaint {
   Float32List _colorStops = Float32List(10);
-  Vec2D _start = Vec2D();
-  Vec2D _end = Vec2D();
-  Vec2D _renderStart = Vec2D();
-  Vec2D _renderEnd = Vec2D();
-  double opacity = 1.0;
+  final Vec2D _start = Vec2D();
+  final Vec2D _end = Vec2D();
+  final Vec2D _renderStart = Vec2D();
+  final Vec2D _renderEnd = Vec2D();
 
   Vec2D get start => _start;
   Vec2D get end => _end;
@@ -293,12 +297,20 @@ abstract class GradientColor extends ActorPaint {
     return component;
   }
 
+  @override
   void onDirty(int dirt) {}
+
+  @override
   void update(int dirt) {
-    ActorShape shape = parent;
+    ActorShape shape = parent as ActorShape;
     Mat2D world = shape.worldTransform;
-    Vec2D.transformMat2D(_renderStart, _start, world);
-    Vec2D.transformMat2D(_renderEnd, _end, world);
+    if (shape.transformAffectsStroke) {
+      Vec2D.copy(_renderStart, _start);
+      Vec2D.copy(_renderEnd, _end);
+    } else {
+      Vec2D.transformMat2D(_renderStart, _start, world);
+      Vec2D.transformMat2D(_renderEnd, _end, world);
+    }
   }
 }
 
@@ -315,6 +327,7 @@ abstract class GradientFill extends GradientColor with ActorFill {
     return component;
   }
 
+  @override
   void completeResolve() {
     super.completeResolve();
 
@@ -338,6 +351,7 @@ abstract class GradientStroke extends GradientColor with ActorStroke {
     return component;
   }
 
+  @override
   void completeResolve() {
     super.completeResolve();
 
@@ -381,6 +395,7 @@ abstract class RadialGradientFill extends RadialGradientColor with ActorFill {
     return component;
   }
 
+  @override
   void completeResolve() {
     super.completeResolve();
 
@@ -406,6 +421,7 @@ abstract class RadialGradientStroke extends RadialGradientColor
     return component;
   }
 
+  @override
   void completeResolve() {
     super.completeResolve();
 

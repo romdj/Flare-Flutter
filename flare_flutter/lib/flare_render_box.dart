@@ -2,31 +2,44 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/services.dart';
 import 'package:flare_dart/math/aabb.dart';
 import 'package:flare_dart/math/mat2d.dart';
 import 'package:flare_dart/math/vec2d.dart';
+
+import 'asset_provider.dart';
 import 'flare.dart';
 import 'flare_cache.dart';
 import 'flare_cache_asset.dart';
 
 /// A render box for Flare content.
 abstract class FlareRenderBox extends RenderBox {
-  AssetBundle _assetBundle;
   BoxFit _fit;
   Alignment _alignment;
   int _frameCallbackID;
   double _lastFrameTime = 0.0;
-  final List<FlareCacheAsset> _assets = [];
+  final Set<FlareCacheAsset> _assets = {};
+  bool _useIntrinsicSize = false;
 
-  AssetBundle get assetBundle => _assetBundle;
-  set assetBundle(AssetBundle value) {
-    if (_assetBundle == value) {
+  bool get useIntrinsicSize => _useIntrinsicSize;
+  set useIntrinsicSize(bool value) {
+    if (_useIntrinsicSize == value) {
       return;
     }
-    _assetBundle = value;
-    if (_assetBundle != null) {
-      _load();
+    _useIntrinsicSize = value;
+    if (parent != null) {
+      markNeedsLayoutForSizedByParentChange();
+    }
+  }
+
+  Size _intrinsicSize;
+  Size get intrinsicSize => _intrinsicSize;
+  set intrinsicSize(Size value) {
+    if (_intrinsicSize == value) {
+      return;
+    }
+    _intrinsicSize = value;
+    if (parent != null) {
+      markNeedsLayoutForSizedByParentChange();
     }
   }
 
@@ -60,14 +73,21 @@ abstract class FlareRenderBox extends RenderBox {
   }
 
   @override
-  bool get sizedByParent => true;
+  bool get sizedByParent => !_useIntrinsicSize || _intrinsicSize == null;
+
+  @override
+  void performLayout() {
+    if (!sizedByParent) {
+      size = constraints.constrain(_intrinsicSize);
+    }
+  }
 
   @override
   bool hitTestSelf(Offset screenOffset) => true;
 
   @override
   void performResize() {
-    size = constraints.biggest;
+    size = _useIntrinsicSize ? constraints.smallest : constraints.biggest;
   }
 
   @override
@@ -80,8 +100,8 @@ abstract class FlareRenderBox extends RenderBox {
   void attach(PipelineOwner owner) {
     super.attach(owner);
     updatePlayState();
-    if (_assets.isEmpty && assetBundle != null) {
-      _load();
+    if (_assets.isEmpty) {
+      load();
     }
   }
 
@@ -203,20 +223,55 @@ abstract class FlareRenderBox extends RenderBox {
   void advance(double elapsedSeconds);
 
   bool _isLoading = false;
+  bool _reloadQueued = false;
   bool get isLoading => _isLoading;
 
-  void _load() async {
+  bool warmLoad() {
+    return false;
+  }
+
+  /// Prevent loading when the renderbox isn't attached. This prevents
+  /// unneccesarily hitting an async path during load. A warmLoad would fail
+  /// which then falls back to a coldLoad. Due to the async nature, any further
+  /// sync calls would be blocked as we gate load with _isLoading.
+  bool get canLoad => attached;
+
+  Future<void> coldLoad() async {}
+
+  /// Trigger the loading process. This will attempt a sync warm load,
+  /// optimizing for the case where the assets we need are already available.
+  /// This allows widgets using this render object to draw immediately and not
+  /// draw any empty frames.
+  ///
+  void load() {
+    if (!canLoad) {
+      return;
+    }
     if (_isLoading) {
+      _reloadQueued = true;
       return;
     }
     _isLoading = true;
     _unload();
-    await load();
-    _isLoading = false;
+    // Try a sync warm load in case we already have what we need.
+    if (!warmLoad()) {
+      coldLoad().then((_) {
+        _completeLoad();
+      });
+    } else {
+      _completeLoad();
+    }
   }
 
-  /// Perform any loading logic necessary for this scene.
-  void load() async {}
+  void _completeLoad() {
+    // Load is complete, check if a reload was requested
+    // during our load, and start it up again
+    _isLoading = false;
+    if (_reloadQueued) {
+      _reloadQueued = false;
+      load();
+    }
+  }
 
   void _unload() {
     for (final FlareCacheAsset asset in _assets) {
@@ -229,12 +284,28 @@ abstract class FlareRenderBox extends RenderBox {
   void onUnload() {}
 
   /// Load a flare file from cache
-  Future<FlutterActor> loadFlare(String filename) async {
-    if (assetBundle == null || filename == null) {
+  FlutterActor getWarmFlare(AssetProvider assetProvider) {
+    if (assetProvider == null) {
       return null;
     }
 
-    FlareCacheAsset asset = await cachedActor(assetBundle, filename);
+    FlareCacheAsset asset = getWarmActor(assetProvider);
+
+    if (!attached || asset == null) {
+      return null;
+    }
+    _assets.add(asset);
+    asset.ref();
+    return asset.actor;
+  }
+
+  /// Load a flare file from cache
+  Future<FlutterActor> loadFlare(AssetProvider assetProvider) async {
+    if (assetProvider == null) {
+      return null;
+    }
+
+    FlareCacheAsset asset = await cachedActor(assetProvider);
 
     if (!attached || asset == null) {
       return null;

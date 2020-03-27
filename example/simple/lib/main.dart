@@ -1,5 +1,8 @@
 import "package:flare_flutter/flare_actor.dart";
+import "package:flare_flutter/flare_cache_builder.dart";
 import "package:flutter/material.dart";
+import 'package:flutter/services.dart';
+import 'package:flare_flutter/provider/asset_flare.dart';
 
 void main() => runApp(MyApp());
 
@@ -26,6 +29,8 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   String _animationName = "idle";
 
+  final asset = AssetFlare(bundle: rootBundle, name: "assets/Filip.flr");
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -37,12 +42,20 @@ class _MyHomePageState extends State<MyHomePage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Expanded(
-                  child: FlareActor(
-                "assets/Filip.flr",
-                alignment: Alignment.center,
-                fit: BoxFit.contain,
-                animation: _animationName,
-              ))
+                child: FlareCacheBuilder(
+                  [asset],
+                  builder: (BuildContext context, bool isWarm) {
+                    return !isWarm
+                        ? Container(child: Text("NO"))
+                        : FlareActor.asset(
+                            asset,
+                            alignment: Alignment.center,
+                            fit: BoxFit.contain,
+                            animation: _animationName,
+                          );
+                  },
+                ),
+              )
             ],
           ),
         ));

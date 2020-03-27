@@ -1,24 +1,28 @@
-import "stream_reader.dart";
+import 'package:flare_dart/actor_layer_effect_renderer.dart';
+
 import "actor_artboard.dart";
-import "math/mat2d.dart";
-import "math/vec2d.dart";
 import "actor_component.dart";
 import "actor_constraint.dart";
 import "actor_flags.dart";
+import "math/mat2d.dart";
+import "math/vec2d.dart";
+import "stream_reader.dart";
 
-typedef bool NodeWalkCallback(ActorNode node);
+typedef bool ComopnentWalkCallback(ActorComponent component);
 
 class ActorClip {
   int clipIdx;
+  bool intersect = true;
   ActorNode node;
 
-  ActorClip(int idx) {
-    clipIdx = idx;
-  }
+  ActorClip(this.clipIdx);
+  ActorClip.copy(ActorClip from)
+      : clipIdx = from.clipIdx,
+        intersect = from.intersect;
 }
 
 class ActorNode extends ActorComponent {
-  List<ActorNode> _children;
+  List<ActorComponent> _children;
   //List<ActorNode> m_Dependents;
   Mat2D _transform = Mat2D();
   Mat2D _worldTransform = Mat2D();
@@ -28,6 +32,8 @@ class ActorNode extends ActorComponent {
   Vec2D _scale = Vec2D.fromValues(1.0, 1.0);
   double _opacity = 1.0;
   double _renderOpacity = 1.0;
+  ActorLayerEffectRenderer _layerEffect;
+  ActorLayerEffectRenderer get layerEffect => _layerEffect;
 
   bool _overrideWorldTransform = false;
   bool _isCollapsedVisibility = false;
@@ -38,8 +44,8 @@ class ActorNode extends ActorComponent {
   List<ActorConstraint> _constraints;
   List<ActorConstraint> _peerConstraints;
 
-  static const int TransformDirty = DirtyFlags.TransformDirty;
-  static const int WorldTransformDirty = DirtyFlags.WorldTransformDirty;
+  static const int transformDirty = DirtyFlags.transformDirty;
+  static const int worldTransformDirty = DirtyFlags.worldTransformDirty;
 
   ActorNode();
   ActorNode.withArtboard(ActorArtboard artboard) : super.withArtboard(artboard);
@@ -70,7 +76,9 @@ class ActorNode extends ActorComponent {
     return _worldTransform;
   }
 
-  // N.B. this should only be done if you really know what you're doing. Generally you want to manipulate the local translation, rotation, and scale of a Node.
+  // N.B. this should only be done if you really know what you're doing.
+  // Generally you want to manipulate the local translation, rotation,
+  // and scale of a Node.
   set worldTransform(Mat2D value) {
     Mat2D.copy(_worldTransform, value);
   }
@@ -160,6 +168,25 @@ class ActorNode extends ActorComponent {
     return _renderOpacity;
   }
 
+  double get childOpacity {
+    return _layerEffect == null ? _renderOpacity : 1;
+  }
+
+  // Helper that looks for layer effect, this is only called by
+  // ActorLayerEffectRenderer when the parent changes. This keeps it efficient
+  // so not every ActorNode has to look for layerEffects as most won't have it.
+  void findLayerEffect() {
+    var layerEffects = children?.whereType<ActorLayerEffectRenderer>();
+    var change = layerEffects != null && layerEffects.isNotEmpty
+        ? layerEffects.first
+        : null;
+    if (_layerEffect != change) {
+      _layerEffect = change;
+      // Force update the opacity.
+      markTransformDirty();
+    }
+  }
+
   bool get renderCollapsed {
     return _renderCollapsed;
   }
@@ -177,7 +204,7 @@ class ActorNode extends ActorComponent {
 
   List<List<ActorClip>> get allClips {
     // Find clips.
-    List<List<ActorClip>> all = List<List<ActorClip>>();
+    List<List<ActorClip>> all = <List<ActorClip>>[];
     ActorNode clipSearch = this;
     while (clipSearch != null) {
       if (clipSearch.clips != null) {
@@ -194,10 +221,10 @@ class ActorNode extends ActorComponent {
       // Still loading?
       return;
     }
-    if (!artboard.addDirt(this, TransformDirty, false)) {
+    if (!artboard.addDirt(this, transformDirty, false)) {
       return;
     }
-    artboard.addDirt(this, WorldTransformDirty, true);
+    artboard.addDirt(this, worldTransformDirty, true);
   }
 
   void updateTransform() {
@@ -218,7 +245,7 @@ class ActorNode extends ActorComponent {
 
     if (parent != null) {
       _renderCollapsed = _isCollapsedVisibility || parent._renderCollapsed;
-      _renderOpacity *= parent._renderOpacity;
+      _renderOpacity *= parent.childOpacity;
       if (!_overrideWorldTransform) {
         Mat2D.multiply(_worldTransform, parent._worldTransform, _transform);
       }
@@ -229,9 +256,7 @@ class ActorNode extends ActorComponent {
 
   static ActorNode read(
       ActorArtboard artboard, StreamReader reader, ActorNode node) {
-    if (node == null) {
-      node = ActorNode();
-    }
+    node ??= ActorNode();
     ActorComponent.read(artboard, reader, node);
     Vec2D.copyFromList(
         node._translation, reader.readFloat32Array(2, "translation"));
@@ -245,28 +270,37 @@ class ActorNode extends ActorComponent {
     if (clipCount > 0) {
       node._clips = List<ActorClip>(clipCount);
       for (int i = 0; i < clipCount; i++) {
-        node._clips[i] = ActorClip(reader.readId("clip"));
+        reader.openObject("clip");
+        var clip = ActorClip(reader.readId("node"));
+        if (artboard.actor.version >= 23) {
+          clip.intersect = reader.readBool("intersect");
+        }
+        reader.closeObject();
+        node._clips[i] = clip;
       }
     }
     reader.closeArray();
     return node;
   }
 
-  void addChild(ActorNode node) {
-    if (node.parent != null) {
-      node.parent._children.remove(node);
-    }
-    node.parent = this;
-    if (_children == null) {
-      _children = List<ActorNode>();
-    }
-    _children.add(node);
+  void removeChild(ActorComponent component) {
+    _children?.remove(component);
   }
 
-  List<ActorNode> get children {
+  void addChild(ActorComponent component) {
+    if (component.parent != null) {
+      component.parent.removeChild(component);
+    }
+    component.parent = this;
+    _children ??= <ActorComponent>[];
+    _children.add(component);
+  }
+
+  List<ActorComponent> get children {
     return _children;
   }
 
+  @override
   ActorComponent makeInstance(ActorArtboard resetArtboard) {
     ActorNode instanceNode = ActorNode();
     instanceNode.copyNode(this, resetArtboard);
@@ -287,19 +321,18 @@ class ActorNode extends ActorComponent {
     if (node._clips != null) {
       _clips = List<ActorClip>(node._clips.length);
       for (int i = 0, l = node._clips.length; i < l; i++) {
-        _clips[i] = ActorClip(node._clips[i].clipIdx);
+        _clips[i] = ActorClip.copy(node._clips[i]);
       }
     } else {
       _clips = null;
     }
   }
 
+  @override
   void onDirty(int dirt) {}
 
   bool addConstraint(ActorConstraint constraint) {
-    if (_constraints == null) {
-      _constraints = List<ActorConstraint>();
-    }
+    _constraints ??= <ActorConstraint>[];
     if (_constraints.contains(constraint)) {
       return false;
     }
@@ -308,9 +341,7 @@ class ActorNode extends ActorComponent {
   }
 
   bool addPeerConstraint(ActorConstraint constraint) {
-    if (_peerConstraints == null) {
-      _peerConstraints = List<ActorConstraint>();
-    }
+    _peerConstraints ??= <ActorConstraint>[];
     if (_peerConstraints.contains(constraint)) {
       return false;
     }
@@ -326,14 +357,15 @@ class ActorNode extends ActorComponent {
               : _constraints + _peerConstraints) ??
       <ActorConstraint>[];
 
+  @override
   void update(int dirt) {
-    if ((dirt & TransformDirty) == TransformDirty) {
+    if ((dirt & transformDirty) == transformDirty) {
       updateTransform();
     }
-    if ((dirt & WorldTransformDirty) == WorldTransformDirty) {
+    if ((dirt & worldTransformDirty) == worldTransformDirty) {
       updateWorldTransform();
       if (_constraints != null) {
-        for (ActorConstraint constraint in _constraints) {
+        for (final ActorConstraint constraint in _constraints) {
           if (constraint.isEnabled) {
             constraint.constrain(this);
           }
@@ -342,6 +374,7 @@ class ActorNode extends ActorComponent {
     }
   }
 
+  @override
   void resolveComponentIndices(List<ActorComponent> components) {
     super.resolveComponentIndices(components);
 
@@ -349,23 +382,27 @@ class ActorNode extends ActorComponent {
       return;
     }
 
-    for (ActorClip clip in _clips) {
-      clip.node = components[clip.clipIdx];
+    for (final ActorClip clip in _clips) {
+      final ActorComponent component = components[clip.clipIdx];
+      if (component is ActorNode) {
+        clip.node = component;
+      }
     }
   }
 
+  @override
   void completeResolve() {
     // Nothing to complete for actornode.
   }
 
-  bool eachChildRecursive(NodeWalkCallback cb) {
+  bool eachChildRecursive(ComopnentWalkCallback cb) {
     if (_children != null) {
-      for (ActorNode child in _children) {
+      for (final ActorComponent child in _children) {
         if (cb(child) == false) {
           return false;
         }
 
-        if (child.eachChildRecursive(cb) == false) {
+        if (child is ActorNode && child.eachChildRecursive(cb) == false) {
           return false;
         }
       }
@@ -373,17 +410,21 @@ class ActorNode extends ActorComponent {
     return true;
   }
 
-  bool all(NodeWalkCallback cb) {
+  bool all(ComopnentWalkCallback cb) {
     if (cb(this) == false) {
       return false;
     }
 
-    for (ActorNode child in _children) {
-      if (cb(child) == false) {
-        return false;
-      }
+    if (_children != null) {
+      for (final ActorComponent child in _children) {
+        if (cb(child) == false) {
+          return false;
+        }
 
-      child.eachChildRecursive(cb);
+        if (child is ActorNode) {
+          child.eachChildRecursive(cb);
+        }
+      }
     }
 
     return true;
